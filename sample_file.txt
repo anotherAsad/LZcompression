@@ -1,0 +1,103 @@
+#! /usr/bin/python3
+
+import subprocess
+import os
+import json
+import random
+
+
+def reset_samples():
+	subprocess.run(f"rm -rf samples/", shell=True)
+	os.mkdir("samples")
+
+# Uses dd to pick up a block
+def pick_sample(source_file, target_file, offset, block_size=4096):
+	try:
+		with open(source_file, "rb") as f:
+			# Seek to the desired offset
+			f.seek(offset)
+			# Read the specified number of bytes
+			data = f.read(block_size)
+		
+			with open("samples/"+target_file, "wb") as f:
+				# Write the data in binary mode
+				f.write(data)
+
+	except Exception as e:
+		print(f"Error reading file: {e}")
+		return
+
+
+reset_samples()
+data_dictionary = {}
+
+file_list = []#[f"chunk_{x}" for x in range(0, 10)]
+
+[file_list.append(x) for x in ["CorpusA", "CorpusB"]]
+
+print(file_list)
+
+for file_idx, mother_file in enumerate(file_list):
+	SAMPLE_COUNT = os.path.getsize(mother_file)/(4*1024)
+
+	if SAMPLE_COUNT > 10000:
+		SAMPLE_COUNT = 10000
+
+	# Naming convention: Corpus{A|B}_{4K|2K|1K}_{0|1|2|3}_ByteLoc
+	for x in range(0, SAMPLE_COUNT):
+		# get a random 4K  page location 0..5M pages
+		page_location = x * 4*1024 #random.randint(0, 5242880) * 4*1024
+
+		data_dictionary[page_location + file_idx] = {}
+
+		for block_count in [4, 2, 1]:
+			# init filesize counters
+			file_size_lz4 = 0
+			file_size_huf = 0
+			file_size_lzh = 0
+			file_size_df3 = 0
+			file_size_gzp = 0
+
+			for idx in [0, 1, 2, 3]:
+				filename = f"{mother_file}_{block_count}K_{idx}_{page_location}"
+				# Pick 1x 4K sample
+				pick_sample(f"{mother_file}", filename, page_location + idx*1024, block_count*1024)
+
+				subprocess.run(f"lz4 --fast samples/"+filename, shell=True)
+				file_size_lz4 += os.path.getsize(f"./samples/"+filename+".lz4")
+
+				subprocess.run(f"./fse -h samples/"+filename, shell=True)
+				file_size_huf += os.path.getsize(f"./samples/"+filename+".fse")
+
+				subprocess.run(f"./fse -h samples/"+filename + ".lz4", shell=True)
+				file_size_lzh += os.path.getsize(f"./samples/"+filename+".lz4.fse")
+
+				subprocess.run(f"./zlib_wrapper samples/"+filename, shell=True)
+				file_size_df3 += os.path.getsize(f"./samples/"+filename+".dfl")
+
+				subprocess.run(f"gzip -1 samples/"+filename, shell=True)
+				file_size_gzp += os.path.getsize(f"./samples/"+filename+".gz")
+
+				if block_count == 4 and idx == 0:
+					break
+				elif block_count == 2 and idx == 1:
+					break
+					
+
+			data_dictionary[page_location + file_idx][block_count] = [file_size_lz4, file_size_huf, file_size_lzh, file_size_df3, file_size_gzp]
+
+		if x % 1000 == 0:
+			print(f"{x}/{SAMPLE_COUNT} samples done")
+
+
+# Action 3: Collate results in SIZE results in a JSON/CSV
+json_file = "results.json"
+
+try:
+	with open(json_file, "w") as f:
+		# Use json.dumps to convert the dictionary to a JSON string
+		json_data = json.dumps(data_dictionary, indent=4)  # Add indentation for readability (optional)
+		f.write(json_data)
+		print(f"Successfully wrote dictionary to JSON file: {json_file}")
+except Exception as e:
+	print(f"Error writing JSON file: {e}")
