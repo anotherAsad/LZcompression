@@ -1,33 +1,38 @@
 #! /usr/bin/python3
 
+# ITERATION_01:
+# - Removed sliding window
+# - Still has infinite search window length
+# - Will find match uptil infinity.
+
 decompressed_stream = ""
 output_stream = ""
-sliding_window = ""
-search_buffer = "AYABRACADABRAABRALOUISISGAYABRACA"
+search_buffer = "AYABRACADABRAABRALOUISISGAYABRACAABCABCABCABCABCABCQWERTY"
 
 string_idx = 0
 
 def stupid_match(string_idx):
-	global sliding_window, search_buffer
+	global search_buffer
 	MIN_MATCH_LEN = 3
 	possible_matches = []
 
 	# Step 1: Find the first character that matches
-	for x in range(0, len(sliding_window)):
-		if search_buffer[string_idx] != sliding_window[x]:
+	for x in range(0, string_idx-1):
+		if search_buffer[string_idx] != search_buffer[x]:
 			continue
 
 		# Step 2: If a match is found, find the length of the match.
-		temp = 1
+		y = 1
 
-		for y in range(x, len(sliding_window)):
-			if search_buffer[string_idx:string_idx+temp] != sliding_window[x:y+1]:
+		# Clever trick: Allows for going past string idx, i.e. distance < length.
+		while True:
+			if search_buffer[string_idx:string_idx+y] != search_buffer[x:x+y]:
 				break
 			else:
-				temp += 1
+				y += 1
 
 		# Append a tuple (back-distance, length)
-		possible_matches.append((string_idx-x, temp-1))
+		possible_matches.append((string_idx-x, y-1))
 
 	# Step 3: Find the match with max length and return it.
 	if not possible_matches:
@@ -63,8 +68,6 @@ def LZcompress():
 	global sliding_window, string_idx
 
 	while string_idx < len(search_buffer):
-		sliding_window = search_buffer[0:string_idx]
-
 		ld_pair = match_func(string_idx)
 		
 		if(ld_pair != (0, 0)):
@@ -95,7 +98,11 @@ def LZdecompress():
 				idx += 2
 			else:
 				back_distance, length = ord(output_stream[idx+1]), ord(output_stream[idx+2])
-				decompressed_stream += decompressed_stream[-back_distance : -back_distance + length]
+
+				# Decompress one-by-one, allows (length > distance) cases
+				for _ in range(0, length):
+					decompressed_stream += decompressed_stream[-back_distance : -back_distance + 1]
+
 				idx += 3
 
 	return
