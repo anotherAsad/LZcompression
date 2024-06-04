@@ -3,22 +3,28 @@
 # ITERATION_01:
 # - Removed sliding window
 # - Added capability to compress/decompress (length > back-distance) cases
-# - Still has infinite search window length
-# - Will find match uptil infinity.
+# - MAX lenghth and back-distance encoded.
+# - Search algo is attrociously slow
 
 decompressed_stream = ""
 output_stream = ""
-search_buffer = "AYABRACADABRAABRALOUISISGAYABRACAABCABCABCABCABCABCQWERTY"
+search_buffer = "AYABRACADABRAABRALOUISISGAYABRACAABCABCABCABCABCABC"
 
 string_idx = 0
 
 def stupid_match(string_idx):
 	global search_buffer
-	MIN_MATCH_LEN = 3
+
+	MIN_MATCH_LEN = 4
+	MAX_MATCH_LEN = 255
+	MAX_SEARCH_DIST = 4
+
 	possible_matches = []
 
+	start_location = string_idx - MAX_SEARCH_DIST if string_idx > MAX_SEARCH_DIST else 0
+
 	# Step 1: Find the first character that matches
-	for x in range(0, string_idx-1):
+	for x in range(start_location, string_idx-1):
 		if search_buffer[string_idx] != search_buffer[x]:
 			continue
 
@@ -26,7 +32,8 @@ def stupid_match(string_idx):
 		y = 1
 
 		# Clever trick: Allows for going past string idx, i.e. distance < length.
-		while True:
+		# WARN: String out-of-range guard not included. Python is immune to this, but heed in other languages.
+		for _ in range(0, MAX_MATCH_LEN):
 			if search_buffer[string_idx:string_idx+y] != search_buffer[x:x+y]:
 				break
 			else:
@@ -50,8 +57,6 @@ def stupid_match(string_idx):
 	else:
 		return max_len_tup
 
-match_func = stupid_match
-
 def emit(inp):
 	global output_stream
 
@@ -67,6 +72,7 @@ def emit(inp):
 
 def LZcompress():
 	global sliding_window, string_idx
+	match_func = stupid_match
 
 	while string_idx < len(search_buffer):
 		ld_pair = match_func(string_idx)
