@@ -2,6 +2,7 @@
 
 # ITERATION_01:
 # - Removed sliding window
+# - Added capability to compress/decompress (length > back-distance) cases
 # - Still has infinite search window length
 # - Will find match uptil infinity.
 
